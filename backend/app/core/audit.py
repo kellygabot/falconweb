@@ -3,7 +3,6 @@ Audit log manager — tracks all changes to sensitive data (grades, attendance, 
 Stored in MongoDB for high-volume append-only access.
 """
 
-from motor.motor_asyncio import AsyncDatabase
 from datetime import datetime
 import logging
 
@@ -11,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class AuditLog:
-    def __init__(self, mongo_db: AsyncDatabase):
+    def __init__(self, mongo_db):
         self.db = mongo_db
         self.collection = mongo_db.audit_logs
 

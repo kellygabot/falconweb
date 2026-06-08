@@ -8,7 +8,6 @@ Flow:
 4. If either fails → rollback both
 """
 
-from motor.motor_asyncio import AsyncDatabase
 from sqlalchemy.orm import Session
 from datetime import datetime
 import logging
@@ -23,7 +22,7 @@ class TwoPhaseCommitError(Exception):
 
 async def commit_grade(
     db: Session,
-    mongo_db: AsyncDatabase,
+    mongo_db,
     student_id: str,
     subject_id: str,
     grading_period_id: str,
@@ -89,7 +88,7 @@ async def commit_grade(
 
 async def commit_deportment(
     db: Session,
-    mongo_db: AsyncDatabase,
+    mongo_db,
     student_id: str,
     section_id: str,
     grading_period_id: str,

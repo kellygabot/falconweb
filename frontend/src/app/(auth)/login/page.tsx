@@ -1,9 +1,18 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { api } from '@/lib/api';
+
+interface LoginResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+}
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -16,10 +25,25 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // TODO: Call login API
-      console.log({ email, password, rememberMe });
+      const response = await api.post<LoginResponse>('/auth/login', {
+        email,
+        password,
+        remember_me: rememberMe,
+      });
+
+      if (response.status === 200 && response.data) {
+        // Store tokens
+        api.setAccessToken(response.data.access_token);
+        api.setRefreshToken(response.data.refresh_token);
+
+        // Redirect to dashboard (TODO: determine based on user role)
+        router.push('/admin');
+      } else {
+        setError(response.error || 'Login failed');
+      }
     } catch (err) {
-      setError('Login failed. Please try again.');
+      setError('An error occurred. Please try again.');
+      console.error(err);
     } finally {
       setLoading(false);
     }

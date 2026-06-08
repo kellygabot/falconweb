@@ -1,14 +1,21 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import logging
 
 from app.core.config import settings
 from app.db.mongo import connect_mongo, disconnect_mongo
 from app.db.postgres import Base, engine
 from app.api import auth, grades, attendance, users, files, facebook
 
-# Create all database tables
-Base.metadata.create_all(bind=engine)
+logger = logging.getLogger(__name__)
+
+# Create all database tables (skip if database unavailable)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    logger.warning(f"Could not create database tables on startup: {e}")
+    logger.info("Make sure PostgreSQL is configured and running")
 
 
 @asynccontextmanager
