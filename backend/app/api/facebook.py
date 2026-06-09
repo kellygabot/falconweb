@@ -12,12 +12,13 @@ logger = logging.getLogger(__name__)
 
 async def fetch_page_posts(page_token: str, page_name: str) -> list[dict]:
     """
-    Fetch posts from a Facebook page using Graph API.
+    Fetch posts from a Facebook page using Graph API (v25.0).
+    Uses pages_show_list to get posts.
     Returns list of post objects with message, image, created_time, permalink_url.
     """
-    url = "https://graph.facebook.com/v20.0/me/posts"
+    url = "https://graph.facebook.com/v25.0/me/feed"
     params = {
-        "fields": "message,picture,created_time,permalink_url,likes.limit(0).summary(1)",
+        "fields": "id,message,picture,created_time,permalink_url,likes.limit(0).summary(1),story",
         "access_token": page_token,
         "limit": 10,
     }
@@ -30,8 +31,14 @@ async def fetch_page_posts(page_token: str, page_name: str) -> list[dict]:
 
             posts = []
             for item in data.get("data", []):
+                # Skip if no message or story
+                message = item.get("message") or item.get("story", "")
+                if not message:
+                    continue
+
                 posts.append({
-                    "message": item.get("message", ""),
+                    "id": item.get("id"),
+                    "message": message,
                     "image": item.get("picture"),
                     "created_time": item.get("created_time"),
                     "url": item.get("permalink_url"),

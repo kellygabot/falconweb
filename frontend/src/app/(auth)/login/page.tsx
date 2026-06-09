@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
@@ -11,6 +11,15 @@ interface LoginResponse {
   token_type: string;
 }
 
+interface UserResponse {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  is_active: boolean;
+  roles: string[];
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -19,27 +28,58 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Check if already logged in
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      router.push('/admin');
+    }
+  }, [router]);
+
+  const getDashboardPath = (roles: string[]): string => {
+    if (roles.includes('super_admin') || roles.includes('school_admin')) {
+      return '/admin';
+    }
+    if (roles.includes('instructor') || roles.includes('advisor')) {
+      return '/faculty';
+    }
+    if (roles.includes('student')) {
+      return '/student';
+    }
+    return '/admin';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      const response = await api.post<LoginResponse>('/auth/login', {
+      // Login
+      const loginRes = await api.post<LoginResponse>('/auth/login', {
         email,
         password,
         remember_me: rememberMe,
       });
 
-      if (response.status === 200 && response.data) {
-        // Store tokens
-        api.setAccessToken(response.data.access_token);
-        api.setRefreshToken(response.data.refresh_token);
+      if (loginRes.status !== 200 || !loginRes.data) {
+        setError(loginRes.error || 'Login failed');
+        setLoading(false);
+        return;
+      }
 
-        // Redirect to dashboard (TODO: determine based on user role)
-        router.push('/admin');
+      // Store tokens
+      api.setAccessToken(loginRes.data.access_token);
+      api.setRefreshToken(loginRes.data.refresh_token);
+
+      // Get user info to determine dashboard
+      const userRes = await api.get<UserResponse>('/auth/me');
+
+      if (userRes.status === 200 && userRes.data) {
+        const dashPath = getDashboardPath(userRes.data.roles);
+        router.push(dashPath);
       } else {
-        setError(response.error || 'Login failed');
+        setError('Could not fetch user profile');
       }
     } catch (err) {
       setError('An error occurred. Please try again.');

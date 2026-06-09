@@ -59,14 +59,16 @@ async def get_grade_sheet(
         GradeComponent.subject_id == subject_id
     ).order_by(GradeComponent.order).all()
 
-    # Get enrolled students
-    enrollments = db.query(Enrollment).filter(
+    # Get enrolled students with their user data
+    from app.models.user import User
+    enrollments = db.query(Enrollment).join(User).filter(
         Enrollment.section_id == subject.section_id
     ).all()
 
     # Build grade sheet rows
     students = []
     for enrollment in enrollments:
+        student_user = db.query(User).filter(User.id == enrollment.student_id).first()
         grades_dict = {}
         for component in components:
             grade = db.query(Grade).filter(
@@ -77,9 +79,13 @@ async def get_grade_sheet(
             ).first()
             grades_dict[component.id] = grade.score if grade else None
 
+        student_name = ""
+        if student_user:
+            student_name = f"{student_user.first_name} {student_user.last_name}"
+
         students.append(GradeSheetRow(
             student_id=enrollment.student_id,
-            student_name="",  # TODO: Fetch from User table
+            student_name=student_name,
             grades=grades_dict,
         ))
 

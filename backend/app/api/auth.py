@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.postgres import get_db
 from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token, decode_token
+from app.core.dependencies import get_current_user
 from app.models.user import User
 
 router = APIRouter()
@@ -26,6 +27,7 @@ class UserInfo(BaseModel):
     email: str
     first_name: str
     last_name: str
+    is_active: bool
     roles: list[str]
 
     class Config:
@@ -39,7 +41,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     if not user or not verify_password(request.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
+            detail="Invalid email or password"
         )
 
     if not user.is_active:
@@ -61,17 +63,30 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(refresh_token: str, db: Session = Depends(get_db)):
+async def refresh_access_token(
+    request: dict = Body(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Refresh an access token using a valid refresh token.
+    Request body: { "refresh_token": "token_string" }
+    """
+    if not request or "refresh_token" not in request:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="refresh_token is required"
+        )
+
     try:
-        payload = decode_token(refresh_token)
+        payload = decode_token(request["refresh_token"])
         user_id = payload.get("sub")
 
         if not user_id or payload.get("type") != "refresh":
-            raise ValueError("Invalid refresh token")
+            raise ValueError("Invalid or expired refresh token")
 
         user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise ValueError("User not found")
+        if not user or not user.is_active:
+            raise ValueError("User not found or inactive")
 
         access_token = create_access_token({"sub": user.id, "email": user.email})
         new_refresh_token = create_refresh_token({"sub": user.id, "email": user.email})
@@ -88,6 +103,16 @@ async def refresh(refresh_token: str, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserInfo)
-async def get_current_user(token: str = Depends(lambda: None), db: Session = Depends(get_db)):
-    # TODO: Extract user from bearer token in header
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Implement bearer token extraction")
+async def get_me(user: User = Depends(get_current_user)):
+    """
+    Get current authenticated user's profile.
+    Requires: Authorization header with Bearer token
+    """
+    return UserInfo(
+        id=user.id,
+        email=user.email,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        is_active=user.is_active,
+        roles=[r.name for r in user.roles]
+    )

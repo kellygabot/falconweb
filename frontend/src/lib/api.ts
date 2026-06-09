@@ -73,6 +73,9 @@ class ApiClient {
         // Retry original request
         options.headers = this.getHeaders();
         const retryResponse = await fetch(`${this.baseUrl}${path}`, options);
+        if (!retryResponse.ok) {
+          return { status: retryResponse.status, error: 'Request failed after token refresh' };
+        }
         return { status: retryResponse.status, data: await retryResponse.json() };
       }
 
